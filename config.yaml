@@ -1,0 +1,35 @@
+﻿# 世界观数据库管理系统 — 配置文件示例
+
+app:
+  secret_key: "change-me-to-a-random-string"
+  # API 密钥（可通过环境变量覆盖）
+  # 优先级：环境变量 > 配置文件
+  admin_api_key: "admin-secret"    # 或设置环境变量 ADMIN_API_KEY
+  user_api_key: "user-secret"      # 或设置环境变量 USER_API_KEY
+  # 旧版环境变量（向后兼容）:
+  # ADMIN_API_KEY → NOVEL_ADMIN_KEY
+  # USER_API_KEY  → NOVEL_API_KEY
+
+database:
+  path: "novel_world_zh.db"
+
+extractor:
+  # LLM 后端类型: "openai_compatible" | "ollama"
+  backend: "openai_compatible"
+
+  openai_compatible:
+    api_base: "https://api.deepseek.com/v1"
+    api_key: "sk-your-api-key-here"
+    model: "deepseek-chat"
+    # 也可使用 OpenAI:
+    # api_base: "https://api.openai.com/v1"
+    # model: "gpt-4o-mini"
+    # 或本地 llama.cpp:
+    # api_base: "http://localhost:8080/v1"
+
+  ollama:
+    model: "qwen2.5:7b"
+    host: "localhost:11434"
+
+  # 自定义提示词模板路径（可选，默认使用 prompts/extract_entities.txt）
+  prompt_template: "prompts/extract_entities.txt"

@@ -1,0 +1,149 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索实体 - 世界观数据库</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>搜索实体</h1>
+        </header>
+        <nav class="main-nav">
+            <a href="/" class="nav-link">首页</a>
+            <a href="/add" class="nav-link">添加实体</a>
+            <a href="/search" class="nav-link active">搜索</a>
+            <a href="/timeline" class="nav-link">时间线</a>
+            <a href="/import" class="nav-link">导入</a>
+            <a href="/import" class="nav-link">导入</a><a href="/admin" class="nav-link">管理</a>
+        </nav>
+        
+        <div class="form-group">
+            <label>关键词：</label>
+            <input type="text" id="searchKeyword" placeholder="输入搜索关键词" onkeydown="if(event.key==='Enter')doSearch()">
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;">
+            <div class="form-group" style="flex:1;min-width:150px;">
+                <label>筛选类型：</label>
+                <select id="searchType">
+                    <option value="">全部类型</option>
+                    {% for key, value in entity_types.items() %}
+                    <option value="{{ key }}">{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:150px;">
+                <label>最大结果数：</label>
+                <select id="searchLimit">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+        <button onclick="doSearch()" class="btn-primary">搜索</button>
+        
+        <div id="results" style="margin-top:20px;"></div>
+    </div>
+    
+    <script>
+        const API_KEY = "{{ api_key }}";
+        const ENTITY_TYPE_NAMES = {{ entity_types | tojson }};
+        
+        async function doSearch() {
+            const keyword = document.getElementById("searchKeyword").value.trim();
+            const entityType = document.getElementById("searchType").value;
+            const limit = parseInt(document.getElementById("searchLimit").value);
+            const resultsDiv = document.getElementById("results");
+            
+            if (!keyword) {
+                resultsDiv.innerHTML = "<p style='color:#666;'>请输入搜索关键词</p>";
+                return;
+            }
+            
+            resultsDiv.innerHTML = "<p>搜索中...</p>";
+            
+            try {
+                const resp = await fetch("/api/search?api_key=" + encodeURIComponent(API_KEY), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        keyword: keyword,
+                        entity_type: entityType || null,
+                        fuzzy: true,
+                        limit: limit
+                    })
+                });
+                const result = await resp.json();
+                
+                if (!resp.ok) {
+                    resultsDiv.innerHTML = "<p style='color:red;'>搜索失败：" + (result.detail || "未知错误") + "</p>";
+                    return;
+                }
+                
+                if (result.total === 0) {
+                    resultsDiv.innerHTML = "<p>未找到匹配的实体</p>";
+                    return;
+                }
+                
+                let html = "<p>找到 <strong>" + result.total + "</strong> 个结果</p>";
+                for (const entity of result.results) {
+                    const typeName = ENTITY_TYPE_NAMES[entity.entity_type] || entity.entity_type;
+                    html += '<div class="search-result">';
+                    html += '<div class="entity-header"><span class="entity-type">' + typeName + '</span><span>重要性: ' + entity.importance + '</span></div>';
+                    html += '<h3><a href="/api/entity/' + entity.entity_id + '?api_key=' + encodeURIComponent(API_KEY) + '" target="_blank">' + entity.title + '</a></h3>';
+                    html += '<p class="meta">ID: ' + entity.entity_id;
+                    if (entity.tags && entity.tags.length > 0) {
+                        html += ' | 标签: ' + entity.tags.join(", ");
+                    }
+                    if (entity.relation_count) {
+                        html += ' | 关系数: ' + entity.relation_count;
+                    }
+                    html += '</p>';
+                    if (entity.ai_summary) {
+                        html += '<p style="color:#555;font-size:13px;margin-top:5px;">' + entity.ai_summary.substring(0, 200) + '</p>';
+                    }
+                    html += '</div>';
+                }
+                resultsDiv.innerHTML = html;
+            } catch (err) {
+                resultsDiv.innerHTML = "<p style='color:red;'>请求失败：" + err.message + "</p>";
+            }
+        }
+    </script>
+
+<script>
+// === Mode switcher: ?mode=admin|user (Phase 3.2) ===
+(function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const modeParam = urlParams.get("mode");
+  const savedMode = localStorage.getItem("worldview_mode");
+  const defaultMode = modeParam || savedMode || "user";
+  localStorage.setItem("worldview_mode", defaultMode);
+  const isAdmin = defaultMode === "admin";
+  
+  // Toggle visibility of admin-only elements
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = isAdmin ? "" : "none";
+  });
+  
+  // Add mode indicator + toggle
+  const header = document.querySelector("header") || document.querySelector("h1") || document.body;
+  const modeBar = document.createElement("div");
+  modeBar.style.cssText = "text-align:right;margin-bottom:10px;font-size:12px;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;";
+  modeBar.innerHTML = \`
+    <span style="color:var(--text-dim, #666);">
+      Mode: <strong>\${isAdmin ? "管理员" : "用户"}</strong>
+      <a href="?mode=\${isAdmin ? "user" : "admin"}" style="margin-left:4px;color:#667eea;text-decoration:none;font-size:11px;">[\${isAdmin ? "切换到用户" : "切换到管理"}]</a>
+    </span>
+  \`;
+  if (header && header.parentNode) {
+    header.parentNode.insertBefore(modeBar, header.nextSibling);
+  }
+})();
+</script>
+</body>
+</html>
