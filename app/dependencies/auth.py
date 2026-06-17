@@ -1,29 +1,83 @@
-﻿"""
-权限依赖注入模块
+"""
+????????
 
-支持从请求头 X-API-Key 或查询参数 api_key 读取密钥。
-管理员密钥优先使用环境变量 ADMIN_API_KEY/ADMIN_API_KEY（和原有 NOVEL_ADMIN_KEY/NOVEL_API_KEY 兼容）。
+?????? X-API-Key ????? api_key ?????
+????????
+  1. ???? ADMIN_API_KEY / USER_API_KEY
+  2. ???? NOVEL_ADMIN_KEY / NOVEL_API_KEY
+  3. .api_keys.json ??????????????
 """
 
+import json
 import os
 import secrets
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import APIKeyHeader, APIKeyQuery
 
-# ── 密钥读取（兼容新旧环境变量名） ──
-ADMIN_API_KEY = (
-    os.environ.get("ADMIN_API_KEY")
-    or os.environ.get("NOVEL_ADMIN_KEY")
-    or "nvk_admin_" + secrets.token_hex(16)
+# -- ??????? --
+_KEY_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", ".api_keys.json"
 )
 
-USER_API_KEY = (
-    os.environ.get("USER_API_KEY")
-    or os.environ.get("NOVEL_API_KEY")
-    or "nvk_" + secrets.token_hex(16)
-)
 
-# 全部有效密钥映射
+def _load_or_generate_keys() -> tuple[str, str]:
+    """????????????????????????????
+
+    ???????? > ???? > ????? > ????+????
+    ?????? ADMIN ???????USER ??????????
+    """
+    admin_key = (
+        os.environ.get("ADMIN_API_KEY")
+        or os.environ.get("NOVEL_ADMIN_KEY")
+    )
+    user_key = (
+        os.environ.get("USER_API_KEY")
+        or os.environ.get("NOVEL_API_KEY")
+    )
+
+    # ???????????? -> ??????????
+    if admin_key and user_key:
+        return admin_key, user_key
+
+    # ???????????????
+    key_file = os.path.abspath(_KEY_FILE)
+    if os.path.exists(key_file):
+        try:
+            with open(key_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not admin_key:
+                admin_key = data.get("admin")
+            if not user_key:
+                user_key = data.get("user")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # ???? -> ????
+    if not admin_key:
+        admin_key = "nvk_admin_" + secrets.token_hex(16)
+    if not user_key:
+        user_key = "nvk_" + secrets.token_hex(16)
+
+    # ?????????????????????????????
+    try:
+        with open(key_file, "w", encoding="utf-8") as f:
+            json.dump({"admin": admin_key, "user": user_key}, f, indent=2)
+        try:
+            os.chmod(key_file, 0o600)
+        except (NotImplementedError, OSError):
+            pass
+    except OSError:
+        pass
+
+    return admin_key, user_key
+
+
+# -- ????? --
+ADMIN_API_KEY, USER_API_KEY = _load_or_generate_keys()
+
+
+# ????????
 VALID_KEYS: dict[str, str] = {
     ADMIN_API_KEY: "admin",
     USER_API_KEY: "user",
@@ -31,37 +85,32 @@ VALID_KEYS: dict[str, str] = {
 
 
 def resolve_api_key(request: Request) -> str | None:
-    """从请求头或查询参数中提取 API Key（不抛异常）。"""
-    # 优先请求头
+    """???????????? API Key???????"""
     header_key = request.headers.get("x-api-key")
     if header_key and header_key in VALID_KEYS:
         return header_key
-
-    # 回退查询参数
     query_key = request.query_params.get("api_key")
     if query_key and query_key in VALID_KEYS:
         return query_key
-
-    # URL 路径中嵌入 ?api_key=… 的兼容场景
     return None
 
 
 async def get_current_user_role(request: Request) -> str:
-    """依赖注入：返回当前用户的角色 "admin" | "user"。
+    """?????????????? "admin" | "user"?
 
-    从 X-API-Key 请求头或 api_key 查询参数读取。
-    无效或缺失时抛出 401。
+    ? X-API-Key ???? api_key ???????
+    ???????? 401?
     """
     api_key = resolve_api_key(request)
     if api_key is None:
-        raise HTTPException(status_code=401, detail="缺少或无效的 API 密钥")
+        raise HTTPException(status_code=401, detail="?????? API ??")
     return VALID_KEYS[api_key]
 
 
 async def require_admin(role: str = Depends(get_current_user_role)) -> None:
-    """依赖注入守卫：仅管理员可访问。
+    """???????????????
 
-    如果当前角色不是 admin，抛出 403。
+    ???????? admin??? 403?
     """
     if role != "admin":
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="???????")
