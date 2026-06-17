@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-世界观数据库管理系统 v1.0.0 中文版
+世界观数据库管理系统 v1.15.0 中文版
 使用 FastAPI + Jinja2 模板
 """
 
@@ -17,6 +17,11 @@ import os
 import json
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Form, Request, Depends
+from services.embedding import MockEmbeddingProvider
+from services.vector_store import VectorStore
+from api.search_semantic import router as semantic_router
+from api.rag_context import router as rag_router
+from api.consistency_check import router as consistency_router
 from pydantic import BaseModel
 from typing import Optional, List
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,7 +69,7 @@ ENTITY_PREFIXES = {
 # FastAPI应用初始化
 # ============================================================
 app = FastAPI(
-    title="世界观数据库管理系统 v1.0.0",
+    title="世界观数据库管理系统 v1.15.0",
     version="1.0.0",
     description="支持 AI 协作的世界观数据库系统"
 )
@@ -154,7 +159,8 @@ class ImportConfirmRequest(BaseModel):
 DB_PATH = "novel_world_zh.db"
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    from services.db import get_connection
+    conn = get_connection(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA encoding = 'UTF-8'")
     conn.execute("PRAGMA journal_mode=WAL")
@@ -273,7 +279,7 @@ def init_db():
 # API接口 - 实体管理
 # ============================================================
 @app.post("/api/entity")
-async def create_entity(entity: EntityCreate, role: str = Depends(get_current_user_role)):
+def create_entity(entity: EntityCreate, request: Request, role: str = Depends(get_current_user_role)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -313,7 +319,7 @@ async def create_entity(entity: EntityCreate, role: str = Depends(get_current_us
         conn.close()
 
 @app.get("/api/entity/{entity_id}")
-async def get_entity(entity_id: str, include_history: bool = False, include_relations: bool = True, role: str = Depends(get_current_user_role)):
+def get_entity(entity_id: str, include_history: bool = False, include_relations: bool = True, role: str = Depends(get_current_user_role)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -350,7 +356,7 @@ async def get_entity(entity_id: str, include_history: bool = False, include_rela
         conn.close()
 
 @app.put("/api/entity/{entity_id}")
-async def update_entity(entity_id: str, update: EntityUpdate, _: None = Depends(require_admin)):
+def update_entity(entity_id: str, update: EntityUpdate, request: Request, _: None = Depends(require_admin)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -368,10 +374,12 @@ async def update_entity(entity_id: str, update: EntityUpdate, _: None = Depends(
         update_fields = []
         update_values = []
         
+        ALLOWED_FIELDS = {"title", "content", "full_content", "ai_summary",
+                          "timeline_year", "timeline_era", "importance"}
         for field, value in {"title": update.title, "content": update.content, "full_content": update.full_content,
                              "ai_summary": update.ai_summary, "timeline_year": update.timeline_year,
                              "timeline_era": update.timeline_era, "importance": update.importance}.items():
-            if value is not None:
+            if value is not None and field in ALLOWED_FIELDS:
                 update_fields.append(f"{field} = ?")
                 update_values.append(value)
         
@@ -404,7 +412,7 @@ async def update_entity(entity_id: str, update: EntityUpdate, _: None = Depends(
         conn.close()
 
 @app.delete("/api/entity/{entity_id}")
-async def delete_entity(entity_id: str, _: None = Depends(require_admin)):
+def delete_entity(entity_id: str, request: Request, _: None = Depends(require_admin)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -418,7 +426,7 @@ async def delete_entity(entity_id: str, _: None = Depends(require_admin)):
 # API接口 - 关系管理
 # ============================================================
 @app.post("/api/relation")
-async def create_relation(relation: RelationCreate, role: str = Depends(get_current_user_role)):
+def create_relation(relation: RelationCreate, role: str = Depends(get_current_user_role)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -437,7 +445,7 @@ async def create_relation(relation: RelationCreate, role: str = Depends(get_curr
         conn.close()
 
 @app.get("/api/entity/{entity_id}/relations")
-async def get_entity_relations(entity_id: str, direction: str = "both", role: str = Depends(get_current_user_role)):
+def get_entity_relations(entity_id: str, direction: str = "both", role: str = Depends(get_current_user_role)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -455,7 +463,7 @@ async def get_entity_relations(entity_id: str, direction: str = "both", role: st
 # API接口 - 搜索
 # ============================================================
 @app.post("/api/search")
-async def search_entities(query: SearchQuery, role: str = Depends(get_current_user_role)):
+def search_entities(query: SearchQuery, role: str = Depends(get_current_user_role)):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -499,30 +507,26 @@ async def search_entities(query: SearchQuery, role: str = Depends(get_current_us
 # API接口 - 统计
 # ============================================================
 @app.get("/api/stats")
-async def get_stats(role: str = Depends(get_current_user_role)):
+def get_stats(role: str = Depends(get_current_user_role)):
     conn = get_db()
-    try:
-        cursor = conn.cursor()
-        stats = {}
-        cursor.execute("SELECT COUNT(*) FROM entities WHERE is_active = 1")
-        stats["total_entities"] = cursor.fetchone()[0]
-        cursor.execute("SELECT entity_type, COUNT(*) as count FROM entities WHERE is_active = 1 GROUP BY entity_type")
-        stats["type_distribution"] = {ENTITY_TYPES.get(r["entity_type"], r["entity_type"]): r["count"] for r in cursor.fetchall()}
-        cursor.execute("SELECT COUNT(*) FROM relations")
-        stats["total_relations"] = cursor.fetchone()[0]
-        cursor.execute("SELECT tag, COUNT(*) as count FROM tag_index GROUP BY tag ORDER BY count DESC LIMIT 20")
-        stats["top_tags"] = [{"tag": r["tag"], "count": r["count"]} for r in cursor.fetchall()]
-        cursor.execute("SELECT COUNT(*) FROM timeline_events")
-        stats["timeline_events"] = cursor.fetchone()[0]
-        return stats
-    finally:
-        conn.close()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM entities WHERE is_active = 1")
+    total = c.fetchone()[0]
+    c.execute("SELECT entity_type, COUNT(*) as count FROM entities WHERE is_active = 1 GROUP BY entity_type")
+    type_dist = {ENTITY_TYPES.get(r["entity_type"], r["entity_type"]): r["count"] for r in c.fetchall()}
+    c.execute("SELECT COUNT(*) FROM relations")
+    rels = c.fetchone()[0]
+    c.execute("SELECT tag, COUNT(*) as count FROM tag_index GROUP BY tag ORDER BY count DESC LIMIT 20")
+    tags = [{"tag": r["tag"], "count": r["count"]} for r in c.fetchall()]
+    c.execute("SELECT COUNT(*) FROM timeline_events")
+    tl = c.fetchone()[0]
+    return {"total_entities": total, "type_distribution": type_dist, "total_relations": rels, "top_tags": tags, "timeline_events": tl}
 
 # ============================================================
 # WEB界面 - 首页
 # ============================================================
 @app.get("/", response_class=HTMLResponse)
-async def get_home(request: Request):
+def get_home(request: Request):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -546,15 +550,15 @@ async def get_home(request: Request):
     })
 
 @app.get("/add", response_class=HTMLResponse)
-async def add_entity_page(request: Request):
+def add_entity_page(request: Request):
     return templates.TemplateResponse("add.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY})
 
 @app.get("/search", response_class=HTMLResponse)
-async def search_page(request: Request):
+def search_page(request: Request):
     return templates.TemplateResponse("search.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY})
 
 @app.get("/timeline", response_class=HTMLResponse)
-async def timeline_page(request: Request):
+def timeline_page(request: Request):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -565,7 +569,7 @@ async def timeline_page(request: Request):
     return templates.TemplateResponse("timeline.html", {"request": request, "eras": eras, "api_key": API_KEY})
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request):
+def admin_page(request: Request):
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -578,43 +582,43 @@ async def admin_page(request: Request):
 
 
 @app.get("/import", response_class=HTMLResponse)
-async def import_page(request: Request):
+def import_page(request: Request):
     """LLM 导入页面。"""
     return templates.TemplateResponse("import.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY, "admin_key": ADMIN_KEY})
 
 # ============================================================
 # RAG API
 # ============================================================
-@app.post("/api/rag/context")
-async def get_rag_context(query: str = Query(""), max_entities: int = 5, focus_entities: str = "", role: str = Depends(get_current_user_role)):
-    conn = get_db()
-    try:
-        cursor = conn.cursor()
-        context = {"summaries": [], "details": [], "relations": []}
-        keyword = f"%{query}%"
-        cursor.execute("SELECT entity_id, title, ai_summary, importance, tags FROM entities WHERE is_active = 1 AND (title LIKE ? OR ai_summary LIKE ? OR content LIKE ?) ORDER BY importance DESC LIMIT ?", (keyword, keyword, keyword, max_entities))
-        entities = cursor.fetchall()
+# [DEPRECATED by api/rag_context.py] @app.post('/api/rag/context')
+# [DEPRECATED by api/rag_context.py] async def get_rag_context(query: str = Query(""), max_entities: int = 5, focus_entities: str = "", role: str = Depends(get_current_user_role)):
+# [DEPRECATED by api/rag_context.py]     conn = get_db()
+# [DEPRECATED by api/rag_context.py]     try:
+# [DEPRECATED by api/rag_context.py]         cursor = conn.cursor()
+# [DEPRECATED by api/rag_context.py]         context = {"summaries": [], "details": [], "relations": []}
+# [DEPRECATED by api/rag_context.py]         keyword = f"%{query}%"
+# [DEPRECATED by api/rag_context.py]         cursor.execute("SELECT entity_id, title, ai_summary, importance, tags FROM entities WHERE is_active = 1 AND (title LIKE ? OR ai_summary LIKE ? OR content LIKE ?) ORDER BY importance DESC LIMIT ?", (keyword, keyword, keyword, max_entities))
+# [DEPRECATED by api/rag_context.py]         entities = cursor.fetchall()
         
-        for entity in entities:
-            if entity["ai_summary"]:
-                context["summaries"].append({"entity_id": entity["entity_id"], "title": entity["title"], "summary": entity["ai_summary"][:500], "importance": entity["importance"], "tags": json.loads(entity["tags"]) if entity["tags"] else []})
+# [DEPRECATED by api/rag_context.py]         for entity in entities:
+# [DEPRECATED by api/rag_context.py]             if entity["ai_summary"]:
+# [DEPRECATED by api/rag_context.py]                 context["summaries"].append({"entity_id": entity["entity_id"], "title": entity["title"], "summary": entity["ai_summary"][:500], "importance": entity["importance"], "tags": json.loads(entity["tags"]) if entity["tags"] else []})
         
-        if focus_entities:
-            for focus_id in [e.strip() for e in focus_entities.split(",") if e.strip()]:
-                cursor.execute("SELECT entity_id, title, ai_summary, tags FROM entities WHERE entity_id = ? AND is_active = 1", (focus_id,))
-                entity = cursor.fetchone()
-                if entity:
-                    context["details"].append({"entity_id": entity["entity_id"], "title": entity["title"], "content": entity["ai_summary"] or "", "tags": json.loads(entity["tags"]) if entity["tags"] else []})
+# [DEPRECATED by api/rag_context.py]         if focus_entities:
+# [DEPRECATED by api/rag_context.py]             for focus_id in [e.strip() for e in focus_entities.split(",") if e.strip()]:
+# [DEPRECATED by api/rag_context.py]                 cursor.execute("SELECT entity_id, title, ai_summary, tags FROM entities WHERE entity_id = ? AND is_active = 1", (focus_id,))
+# [DEPRECATED by api/rag_context.py]                 entity = cursor.fetchone()
+# [DEPRECATED by api/rag_context.py]                 if entity:
+# [DEPRECATED by api/rag_context.py]                     context["details"].append({"entity_id": entity["entity_id"], "title": entity["title"], "content": entity["ai_summary"] or "", "tags": json.loads(entity["tags"]) if entity["tags"] else []})
         
-        entity_ids = [e["entity_id"] for e in entities[:5]]
-        if entity_ids:
-            placeholders = ",".join(["?"] * len(entity_ids))
-            cursor.execute(f"SELECT r.*, e1.title as source_title, e2.title as target_title FROM relations r JOIN entities e1 ON r.source_id = e1.entity_id JOIN entities e2 ON r.target_id = e2.entity_id WHERE r.source_id IN ({placeholders}) OR r.target_id IN ({placeholders})", entity_ids + entity_ids)
-            context["relations"] = [dict(r) for r in cursor.fetchall()]
+# [DEPRECATED by api/rag_context.py]         entity_ids = [e["entity_id"] for e in entities[:5]]
+# [DEPRECATED by api/rag_context.py]         if entity_ids:
+# [DEPRECATED by api/rag_context.py]             placeholders = ",".join(["?"] * len(entity_ids))
+# [DEPRECATED by api/rag_context.py]             cursor.execute(f"SELECT r.*, e1.title as source_title, e2.title as target_title FROM relations r JOIN entities e1 ON r.source_id = e1.entity_id JOIN entities e2 ON r.target_id = e2.entity_id WHERE r.source_id IN ({placeholders}) OR r.target_id IN ({placeholders})", entity_ids + entity_ids)
+# [DEPRECATED by api/rag_context.py]             context["relations"] = [dict(r) for r in cursor.fetchall()]
         
-        return context
-    finally:
-        conn.close()
+# [DEPRECATED by api/rag_context.py]         return context
+# [DEPRECATED by api/rag_context.py]     finally:
+# [DEPRECATED by api/rag_context.py]         conn.close()
 
 # ============================================================
 # 启动
@@ -624,7 +628,7 @@ async def get_rag_context(query: str = Query(""), max_entities: int = 5, focus_e
 # API?? - ???
 # ============================================================
 @app.get("/api/timeline")
-async def get_timeline_events(era: str = None, role: str = Depends(get_current_user_role)):
+def get_timeline_events(era: str = None, role: str = Depends(get_current_user_role)):
     """??????????????"""
     conn = get_db()
     try:
@@ -642,7 +646,7 @@ async def get_timeline_events(era: str = None, role: str = Depends(get_current_u
 # API接口 - 快速搜索（给前端自动补全用）
 # ============================================================
 @app.get("/api/search/quick")
-async def quick_search(q: str = Query(""), limit: int = 5, role: str = Depends(get_current_user_role)):
+def quick_search(q: str = Query(""), limit: int = 5, role: str = Depends(get_current_user_role)):
     """快速搜索实体，返回精简结果（给前端自动补全用）。"""
     conn = get_db()
     try:
@@ -658,7 +662,7 @@ async def quick_search(q: str = Query(""), limit: int = 5, role: str = Depends(g
 
 
 @app.post("/api/import/preview")
-async def import_preview(req: ImportPreviewRequest, _: None = Depends(require_admin)):
+def import_preview(req: ImportPreviewRequest, _: None = Depends(require_admin)):
     """自然语言导入预览：调用 LLM 抽取候选实体和关系。"""
     try:
         from extractors import get_extractor
@@ -671,7 +675,7 @@ async def import_preview(req: ImportPreviewRequest, _: None = Depends(require_ad
 
 
 @app.post("/api/import/confirm")
-async def import_confirm(req: ImportConfirmRequest, _: None = Depends(require_admin)):
+def import_confirm(req: ImportConfirmRequest, _: None = Depends(require_admin)):
     """确认导入实体和关系到数据库。"""
     conn = get_db()
     try:
@@ -714,7 +718,7 @@ async def import_confirm(req: ImportConfirmRequest, _: None = Depends(require_ad
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  世界观数据库管理系统 v1.0.0 中文版")
+    print("  世界观数据库管理系统 v1.15.0 中文版")
     print("=" * 60)
     print(f"  启动时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("-" * 60)
@@ -728,4 +732,17 @@ if __name__ == "__main__":
     print("=" * 60)
     
     init_db()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    embedding_provider = MockEmbeddingProvider()
+    vector_store = VectorStore(DB_PATH, embedding_provider)
+    vector_store.init_db()
+    app.state.vector_store = vector_store
+    app.state.db_path = DB_PATH
+    app.include_router(semantic_router)
+    app.include_router(rag_router)
+    app.include_router(consistency_router)
+    print("  [OK] Vector Store initialized with sqlite-vec")
+    print("  [OK] Consistency Checker loaded (4 check types)")
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    finally:
+        close_connection()
