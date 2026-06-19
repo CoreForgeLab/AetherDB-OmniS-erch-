@@ -2,6 +2,7 @@
 
 app:
   secret_key: "change-me-to-a-random-string"
+  workspace_id: "default"
   # API 密钥（可通过环境变量覆盖）
   # 优先级：环境变量 > 配置文件
   admin_api_key: "admin-secret"    # 或设置环境变量 ADMIN_API_KEY
@@ -12,6 +13,24 @@ app:
 
 database:
   path: "novel_world_zh.db"
+
+
+# ── Logging Configuration ──
+logging:
+  # Log level: DEBUG | INFO | WARNING | ERROR
+  level: INFO
+  # Log file rotation: max bytes per file before rotating
+  max_bytes: 10485760
+  # Number of rotated log files to keep
+  backup_count: 5
+
+# ── Backup Configuration ──
+backup:
+  enabled: true
+  # Number of backups to keep
+  keep_last: 10
+  # Create a backup automatically on server startup
+  auto_backup_on_startup: true
 
 extractor:
   # LLM 后端类型: "openai_compatible" | "ollama"

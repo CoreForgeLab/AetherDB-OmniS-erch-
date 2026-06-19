@@ -77,7 +77,51 @@ def sanitize_input(text: str, max_length: int = MAX_INPUT_LENGTH) -> str:
     if len(sanitized) > max_length:
         sanitized = sanitized[:max_length] + "\n...[truncated]"
     
-    return sanitized
+   return sanitized
+ 
+ 
+ def clean_json_response(raw: str) -> str:
+     """Aggressively strip Markdown code fences and non-JSON prefixes from LLM output.
+ 
+     Small local models (e.g. Ollama Qwen, Llama) frequently wrap JSON in
+     ```json ... ``` blocks, or prefix it with explanatory text. This function
+     extracts the first valid JSON array or object from the response.
+     """
+     if not raw:
+         return ""
+ 
+     # 1. Remove ```json, ```, and other code fences
+     cleaned = re.sub(r'(?s)```(?:json|python|javascript)?\s*', '', raw).strip()
+ 
+     # 2. Strip leading non-JSON text (everything before first { or [)
+     json_start = re.search(r'[\[{]', cleaned)
+     if json_start:
+         cleaned = cleaned[json_start.start():]
+ 
+     # 3. If there are extra braces/closing, truncate after the balanced end
+     #    (simple heuristic: find matching ] or })
+     depth = 0
+     in_str = False
+     for i, ch in enumerate(cleaned):
+         if ch in ('"', "'") and (i == 0 or cleaned[i-1] != '\\'):
+             in_str = not in_str
+             continue
+         if in_str:
+             continue
+         if ch in ('[', '{'):
+             depth += 1
+         elif ch in (']', '}'):
+             depth -= 1
+             if depth == 0:
+                 cleaned = cleaned[:i+1]
+                 break
+ 
+     return cleaned.strip()
+ 
+ 
+ # Alias for discoverability
+ def _clean_json_response(raw: str) -> str:
+     return clean_json_response(raw)
 
 
 class ExtractorBase(ABC):

@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-世界观数据库管理系统 v1.15.0 中文版
+世界观数据库管理系统 v1.18.0 中文版
 使用 FastAPI + Jinja2 模板
 """
 
@@ -17,21 +17,27 @@ import os
 import json
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Form, Request, Depends
+from services.logger import init_logging, get_logger, log_access
 from services.embedding import MockEmbeddingProvider
 from services.vector_store import VectorStore
 from api.search_semantic import router as semantic_router
 from api.rag_context import router as rag_router
 from api.consistency_check import router as consistency_router
+from api.backup import router as backup_router
 from pydantic import BaseModel
 from typing import Optional, List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from routes.web import web_router
 from fastapi.templating import Jinja2Templates
 
 # ============================================================
 # 安全密钥管理
 # ============================================================
+import time
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.dependencies.auth import (
     ADMIN_API_KEY as ADMIN_KEY,
     USER_API_KEY as API_KEY,
@@ -69,7 +75,7 @@ ENTITY_PREFIXES = {
 # FastAPI应用初始化
 # ============================================================
 app = FastAPI(
-    title="世界观数据库管理系统 v1.15.0",
+    title="世界观数据库管理系统 v1.18.0",
     version="1.0.0",
     description="支持 AI 协作的世界观数据库系统"
 )
@@ -523,70 +529,6 @@ def get_stats(role: str = Depends(get_current_user_role)):
     return {"total_entities": total, "type_distribution": type_dist, "total_relations": rels, "top_tags": tags, "timeline_events": tl}
 
 # ============================================================
-# WEB界面 - 首页
-# ============================================================
-@app.get("/", response_class=HTMLResponse)
-def get_home(request: Request):
-    conn = get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM entities WHERE is_active = 1")
-        total_entities = cursor.fetchone()[0]
-        cursor.execute("SELECT entity_type, COUNT(*) as count FROM entities WHERE is_active = 1 GROUP BY entity_type")
-        type_dist = cursor.fetchall()
-        cursor.execute("SELECT COUNT(*) FROM relations")
-        total_relations = cursor.fetchone()[0]
-        cursor.execute("SELECT entity_id, title, entity_type, importance, created_at FROM entities WHERE is_active = 1 ORDER BY created_at DESC LIMIT 10")
-        recent_entities = cursor.fetchall()
-    finally:
-        conn.close()
-    
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "stats": {"total_entities": total_entities, "type_distribution": {ENTITY_TYPES.get(r["entity_type"], r["entity_type"]): r["count"] for r in type_dist}, "total_relations": total_relations},
-        "recent_entities": recent_entities,
-        "entity_types": ENTITY_TYPES,
-        "api_key": API_KEY[:8] + "..."
-    })
-
-@app.get("/add", response_class=HTMLResponse)
-def add_entity_page(request: Request):
-    return templates.TemplateResponse("add.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY})
-
-@app.get("/search", response_class=HTMLResponse)
-def search_page(request: Request):
-    return templates.TemplateResponse("search.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY})
-
-@app.get("/timeline", response_class=HTMLResponse)
-def timeline_page(request: Request):
-    conn = get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT timeline_era FROM entities WHERE timeline_era IS NOT NULL")
-        eras = [r["timeline_era"] for r in cursor.fetchall()]
-    finally:
-        conn.close()
-    return templates.TemplateResponse("timeline.html", {"request": request, "eras": eras, "api_key": API_KEY})
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request):
-    conn = get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM entities WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 50")
-        entities = cursor.fetchall()
-    finally:
-        conn.close()
-    return templates.TemplateResponse("admin.html", {"request": request, "entities": entities, "entity_types": ENTITY_TYPES, "admin_key": ADMIN_KEY})
-
-
-
-@app.get("/import", response_class=HTMLResponse)
-def import_page(request: Request):
-    """LLM 导入页面。"""
-    return templates.TemplateResponse("import.html", {"request": request, "entity_types": ENTITY_TYPES, "api_key": API_KEY, "admin_key": ADMIN_KEY})
-
-# ============================================================
 # RAG API
 # ============================================================
 # [DEPRECATED by api/rag_context.py] @app.post('/api/rag/context')
@@ -716,9 +658,19 @@ def import_confirm(req: ImportConfirmRequest, _: None = Depends(require_admin)):
         conn.close()
 
 
+# Access logging middleware
+@app.middleware("http")
+async def access_log_middleware(request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start) * 1000
+    log_access(request.method, request.url.path, response.status_code, duration_ms)
+    return response
+
+
 if __name__ == "__main__":
     print("=" * 60)
-    print("  世界观数据库管理系统 v1.15.0 中文版")
+    print("  世界观数据库管理系统 v1.18.0 中文版")
     print("=" * 60)
     print(f"  启动时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("-" * 60)
@@ -740,9 +692,30 @@ if __name__ == "__main__":
     app.include_router(semantic_router)
     app.include_router(rag_router)
     app.include_router(consistency_router)
+    app.include_router(web_router)
+    app.include_router(backup_router)
     print("  [OK] Vector Store initialized with sqlite-vec")
     print("  [OK] Consistency Checker loaded (4 check types)")
+    print("  [OK] Logging system initialized (logs/)")
+    
+    # Initialize logging
+    import yaml
+    with open("config.yaml", "r", encoding="utf-8") as cf:
+        cfg = yaml.safe_load(cf)
+    log_level = cfg.get("logging", {}).get("level", "INFO")
+    init_logging(level=log_level)
+    log = get_logger()
+    log.info("Server starting - Worldview Database v1.18.0")
+    
+    # Auto backup on startup
+    if cfg.get("backup", {}).get("auto_backup_on_startup", True):
+        from api.backup import _create_backup
+        try:
+            meta = _create_backup("Auto backup on server startup")
+            log.info("Auto backup created: " + meta["name"])
+        except Exception as e:
+            log.warning("Auto backup skipped: " + str(e))
     try:
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
     finally:
         close_connection()

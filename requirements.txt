@@ -9,3 +9,4 @@ PyYAML>=6.0
 
 sqlite-vec>=0.1.0
 requests>=2.31.0
+ alembic>=1.13.0
