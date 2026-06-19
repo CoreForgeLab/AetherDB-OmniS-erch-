@@ -1,11 +1,11 @@
 ﻿# 世界观数据库管理系统
 
-基于 **FastAPI + SQLite** 的世界观（小说设定）数据库管理系统。支持 8 种实体类型管理、关系图谱、标签索引、版本历史、时间线和 LLM 辅助导入。
+基于 **FastAPI + SQLite** 的世界观（小说设定）数据库管理系统。支持 8 种实体类型管理、关系图谱、标签索引、版本历史、时间线、语义搜索、LLM 辅助导入、数据备份与日志系统。
 
 ---
 > **🔒 API 稳定性承诺**
 >
-> 在 **v1.15.0** 版本之前，本项目承诺**不会引入大面积破坏性变更（Breaking Changes）**。
+> 在 **v1.18.0** 版本之前，本项目承诺**不会引入大面积破坏性变更（Breaking Changes）**。
 >
 > - ✅ 现有 API 路径、请求/响应格式保持向后兼容
 > - ✅ 数据库 Schema 不做破坏性迁移
@@ -13,7 +13,7 @@
 > - ✅ 新功能以向后兼容的方式添加
 >
 > 如有必要变更，会在 Release Notes 中明确标注并提供迁移指南。
-> *v1.15.0 及之后，破坏性变更将遵循语义化版本规范（SemVer）管理。*
+> *v1.18.0 及之后，破坏性变更将遵循语义化版本规范（SemVer）管理。*
 
 ---
 
@@ -56,12 +56,59 @@ export ADMIN_API_KEY="your-admin-key"
 export USER_API_KEY="your-user-key"
 ```
 
-详细配置说明见 [config.yaml](config.yaml)。
+## v1.18.0 新增功能
+
+### 📝 日志系统（services/logger.py）
+- 旋转文件日志：`app.log`（应用）、`error.log`（错误）、`access.log`（请求）
+- 控制台同步输出，日志级别可配置
+- 运行中读取/筛选/统计日志（`/api/logs/*`）
+
+### 💾 数据备份 API（api/backup.py）
+- JSON 格式全表导出/导入（entities、relations、timeline_events 等 6 张表）
+- 数据库快照（.db 文件拷贝）
+- 备份创建、列表浏览、恢复、自动清理
+- 自动备份开关（持久化至 config.yaml）
+
+### 🛣️ 路由拆分（routes/web.py）
+- Web 页面路由从 `main.py` 独立拆分，代码更清晰
+
+### 🗄️ 数据库迁移（alembic/）
+- Alembic 迁移框架集成，支持数据库 Schema 版本管理
+- 首个迁移包含完整的表结构
+
+### 🧪 CLI 工具（scripts/）
+- `scripts/backup.py` — 命令行数据备份
+
+## V1.x 技术路线图
+
+| 版本 | 状态 | 核心功能 |
+|------|------|----------|
+| v1.0.0Beta | ✅ 已发布 | 初始版本：8 种实体类型、CRUD、关系图谱、标签、时间线 |
+| v1.15.0 | ✅ 已发布 | 服务层重构、语义搜索、一致性检查、向量存储、速率限制 |
+| v1.18.0 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
+| v1.1.0 | 📅 规划 | 高级 RAG、sqlite-vec、混合搜索、基础一致性检查器 |
+| v1.2.0 | 📅 规划 | 多语言架构（entity_translations 表、跨语言搜索） |
+| v1.3.0 | 📅 规划 | 缓存（diskcache）、LLMProvider 抽象、D3.js 知识图谱 |
+| v2.0+ | 🔮 远期 | FAISS/Qdrant 向量数据库、PostgreSQL、Docker 部署 |
 
 ## 项目结构
 
 ```
 ├── main.py                          # 后端入口 (FastAPI)
+├── routes/web.py                    # Web 页面路由
+├── api/                             # API 路由模块
+│   ├── backup.py                    #   数据备份 API
+│   ├── search_semantic.py           #   语义搜索
+│   ├── rag_context.py               #   RAG 上下文
+│   └── consistency_check.py         #   一致性检查
+├── services/                        # 服务层
+│   ├── logger.py                    #   日志系统
+│   ├── db.py                        #   数据库连接池
+│   ├── embedding.py                 #   嵌入向量服务
+│   ├── vector_store.py              #   向量存储
+│   ├── consistency.py               #   一致性检查引擎
+│   ├── auth.py                      #   权限认证
+│   └── rate_limiter.py              #   速率限制
 ├── app/dependencies/auth.py         # 权限依赖注入
 ├── extractors/                      # LLM 实体抽取器
 │   ├── base.py                      #   抽象基类
@@ -76,8 +123,13 @@ export USER_API_KEY="your-user-key"
 │   ├── admin.html                   #   管理面板
 │   └── import.html                  #   LLM 导入
 ├── static/style.css                 # 全局样式
+├── alembic/                         # 数据库迁移
+├── scripts/                         # CLI 工具
 ├── config.yaml                      # 配置文件示例
-└── requirements.txt                 # Python 依赖
+├── requirements.txt                 # Python 依赖
+└── tests/                           # 单元测试
+    ├── test_extractors.py           #   抽取器测试（9 用例）
+    └── test_crud.py                 #   CRUD 测试（13 用例）
 ```
 
 ## API 概览
@@ -89,10 +141,31 @@ export USER_API_KEY="your-user-key"
 | PUT | /api/entity/{id} | admin | 更新实体 |
 | DELETE | /api/entity/{id} | admin | 软删除实体 |
 | POST | /api/search | user | 搜索实体 |
+| POST | /api/search/semantic | user | 语义搜索（混合检索） |
+| POST | /api/rag/context | user | RAG 上下文检索 |
+| POST | /api/consistency/check | admin | 一致性检查 |
 | POST | /api/import/preview | admin | LLM 提取预览 |
 | POST | /api/import/confirm | admin | 确认导入 |
+| POST | /api/backup/create | admin | 创建数据备份 |
+| GET | /api/backup/list | user | 备份列表 |
+| GET | /api/backup/stats | user | 备份统计 |
+| POST | /api/backup/restore/{name} | admin | 恢复备份 |
+| POST | /api/backup/cleanup | admin | 清理旧备份 |
+| GET | /api/backup/auto-backup | user | 查看自动备份状态 |
+| POST | /api/backup/auto-backup | admin | 开关自动备份 |
+| GET | /api/logs/{log_type} | user | 读取日志 |
+| GET | /api/logs/{log_type}/stats | user | 日志统计 |
+| GET | /api/stats | user | 系统统计 |
 
 认证方式：请求头 `X-API-Key: your-key` 或查询参数 `?api_key=your-key`。
+
+## 运行测试
+
+```bash
+python -m unittest discover tests -v
+```
+
+覆盖范围：抽取器 JSON 解析边界、输入清洗、CRUD 边界条件（空值、外键约束、软删除、版本历史）。
 
 ## 开放源代码
 
