@@ -58,7 +58,7 @@ export ADMIN_API_KEY="your-admin-key"
 export USER_API_KEY="your-user-key"
 ```
 
-## V1.2.0 新增功能
+## V1.18.0 新增功能
 
 ### 📝 日志系统（services/logger.py）
 - 旋转文件日志：`app.log`（应用）、`error.log`（错误）、`access.log`（请求）
@@ -93,7 +93,7 @@ export USER_API_KEY="your-user-key"
 |------|------|----------|
 | v1.0.0Beta | ✅ 已发布 | 初始版本：8 种实体类型、CRUD、关系图谱、标签、时间线 |
 | V1.1.5 | ✅ 已发布 | 服务层重构、语义搜索、一致性检查、向量存储、速率限制 |
-| V1.2.0 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
+| V1.19.1 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
 | v1.1.0 | ✅ 已发布（V1.1.5） | 高级 RAG、sqlite-vec、混合搜索、一致性检查（已在 V1.1.5 中完成） |
 | v1.2.0 | 📅 规划 | 多语言架构（entity_translations 表、跨语言搜索） |
 | v1.3.0 | 📅 规划 | 缓存（diskcache）、LLMProvider 抽象、D3.js 知识图谱 |

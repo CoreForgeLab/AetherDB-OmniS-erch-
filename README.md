@@ -60,7 +60,7 @@ export USER_API_KEY="your-user-key"
 
 Detailed config reference: [config.yaml](config.yaml).
 
-## What's New in v1.19.0
+## What's New in v1.19.1
 
 ### 🐍 Environment Compatibility & Dependency Locking
 - **Python 3.10 ~ 3.13** fully verified and supported
@@ -77,7 +77,7 @@ Detailed config reference: [config.yaml](config.yaml).
 | v1.0.0Beta | ✅ Released | Initial: 8 entity types, CRUD, relations, tags, timeline |
 | v1.15.0 | ✅ Released | Service layer, semantic search, consistency checker, vector store, rate limiter |
 | v1.18.0 | ✅ Released | Logging system, backup API, route splitting, Alembic migrations |
-| v1.19.0 | ✅ Current | Python 3.10-3.13 compat, dependency pinning, Starlette fix |
+| v1.19.1 | ✅ Current | Python 3.10-3.13 compat, dependency pinning, Starlette fix |
 | v1.1.0 | ✅ Released (in v1.15.0) | Advanced RAG, sqlite-vec, hybrid search, consistency checking |
 | v1.2.0 | 📅 Planned | Multi-language (entity_translations table, cross-language search) |
 | v1.3.0 | 📅 Planned | Cache (diskcache), LLMProvider abstraction, D3.js knowledge graph |
