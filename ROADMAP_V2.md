@@ -50,6 +50,26 @@
 
 ---
 
+---
+
+## V1.1.5 - Security & Performance Iteration (Week 3-4)
+
+**No breaking API changes**.
+
+- **Connection Pool** (`services/db.py`) ? Thread-local SQLite connections with auto-reconnect
+- **Rate Limiter** (`services/rate_limiter.py`) ? Sliding-window middleware (120 req/min per key)
+- **Dual Auth** (`services/auth.py`) ? X-API-Key header + Query param fallback
+- **SQL Injection Fix** ? ALLOWED_FIELDS whitelist in update_entity
+- **LLM Extraction Module** (`extractors/base.py`, `extractors/ollama.py`, `extractors/openai_compatible.py`)
+  - Robust JSON parsing (Markdown code blocks, trailing commas, single quotes)
+  - `sanitize_input()` truncation + control char filtering
+- **Prompt Injection Defense** (`prompts/extract_entities.txt`)
+  - System prompt marked as ABSOLUTE BINDING
+  - Explicit ignore-user-override instructions
+- **Performance Fix** ? All 18 data endpoints `async def` to `def` (FastAPI thread pool)
+  - Eliminates event loop blocking from synchronous sqlite3 calls
+  - Thread-local connection pool works correctly per thread
+
 ## V1.2.0 - Multi-Language Architecture (Week 6-7)
 - entity_translations table (entity_id, language, title, content)
 - Migration script for existing single-language data

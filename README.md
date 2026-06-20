@@ -5,7 +5,7 @@
 ---
 > **🔒 API 稳定性承诺**
 >
-> 在 **v1.15.0** 版本之前，本项目承诺**不会引入大面积破坏性变更（Breaking Changes）**。
+> 在 **V1.1.5** 版本之前，本项目承诺**不会引入大面积破坏性变更（Breaking Changes）**。
 >
 > - ✅ 现有 API 路径、请求/响应格式保持向后兼容
 > - ✅ 数据库 Schema 不做破坏性迁移
@@ -13,7 +13,7 @@
 > - ✅ 新功能以向后兼容的方式添加
 >
 > 如有必要变更，会在 Release Notes 中明确标注并提供迁移指南。
-> *v1.15.0 及之后，破坏性变更将遵循语义化版本规范（SemVer）管理。*
+> *V1.1.5 及之后，破坏性变更将遵循语义化版本规范（SemVer）管理。*
 
 ---
 
@@ -56,7 +56,7 @@ export ADMIN_API_KEY="your-admin-key"
 export USER_API_KEY="your-user-key"
 ```
 
-## v1.18.0 新增功能
+## V1.2.0 新增功能
 
 ### 📝 日志系统（services/logger.py）
 - 旋转文件日志：`app.log`（应用）、`error.log`（错误）、`access.log`（请求）
@@ -77,6 +77,12 @@ export USER_API_KEY="your-user-key"
 - 首个迁移包含完整的表结构
 
 ### 🧪 CLI 工具（scripts/）
+### 🐍 环境兼容与依赖锁定（requirements.txt）
+- 已验证 Python 3.10 ~ 3.13 全部兼容
+- 所有依赖版本已精确锁定（pinned exact versions），已知可协同工作
+- Starlette TemplateResponse API 兼容性修复（0.27.0 old-sig / 1.3.1+ new-sig）
+- OpenAI SDK 改为可选依赖（需要 LLM 抽取时取消注释）
+- 新增 httptools（可选的 uvicorn HTTP 解析加速器）
 - `scripts/backup.py` — 命令行数据备份
 
 ## V1.x 技术路线图
@@ -84,9 +90,9 @@ export USER_API_KEY="your-user-key"
 | 版本 | 状态 | 核心功能 |
 |------|------|----------|
 | v1.0.0Beta | ✅ 已发布 | 初始版本：8 种实体类型、CRUD、关系图谱、标签、时间线 |
-| v1.15.0 | ✅ 已发布 | 服务层重构、语义搜索、一致性检查、向量存储、速率限制 |
-| v1.18.0 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
-| v1.1.0 | ✅ 已发布（v1.15.0） | 高级 RAG、sqlite-vec、混合搜索、一致性检查（已在 v1.15.0 中完成） |
+| V1.1.5 | ✅ 已发布 | 服务层重构、语义搜索、一致性检查、向量存储、速率限制 |
+| V1.2.0 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
+| v1.1.0 | ✅ 已发布（V1.1.5） | 高级 RAG、sqlite-vec、混合搜索、一致性检查（已在 V1.1.5 中完成） |
 | v1.2.0 | 📅 规划 | 多语言架构（entity_translations 表、跨语言搜索） |
 | v1.3.0 | 📅 规划 | 缓存（diskcache）、LLMProvider 抽象、D3.js 知识图谱 |
 | v2.0+ | 🔮 远期 | FAISS/Qdrant 向量数据库、PostgreSQL、Docker 部署 |
@@ -158,6 +164,25 @@ export USER_API_KEY="your-user-key"
 | GET | /api/stats | user | 系统统计 |
 
 认证方式：请求头 `X-API-Key: your-key` 或查询参数 `?api_key=your-key`。
+
+
+
+## Workspace / Database ID
+
+本项目提前引入了 **Workspace（工作区）** 概念，作为未来多数据库管理的基础设施预留。
+
+配置文件 config.yaml 中对应设置：
+
+```yaml
+app:
+  workspace_id: "default"   # 当前数据库实例的唯一标识
+```
+
+- **用途**：每个数据库实例拥有唯一的 workspace_id，备份元数据中会携带此标识
+- **未来路线**：多数据库路由、跨库检索、分布式部署时区分不同实例
+- **默认值**："default"（单数据库场景无需修改）
+- **备份文件**：backup_metadata.json 中记录 workspace_id 字段
+- **当前状态**：仅用于标识和元数据记录，完整多数据库管理功能在后续版本实现
 
 ## 运行测试
 

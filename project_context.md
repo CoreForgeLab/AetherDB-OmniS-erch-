@@ -19,6 +19,10 @@ Tech stack: FastAPI + SQLite (WAL) + Jinja2
 | Vector Store | sqlite-vec (V1.1) |
 | Cache | diskcache (V1.3) |
 | Graph DB | Neo4j (V1.5) |
+| Connection Pool | services/db.py (thread-local, auto-reconnect) | V1.1.5 |
+| Rate Limiter | services/rate_limiter.py (sliding window) | V1.1.5 |
+| LLM Extraction | extractors/base.py (OpenAI/Ollama/DeepSeek) | V1.1.5 |
+| Prompt Defense | prompts/extract_entities.txt | V1.1.5 |
 
 ## 3. Database
 
@@ -58,6 +62,9 @@ Database: novel_world_zh.db
 | GET | /api/search/quick |
 | POST | /api/import/preview |
 | POST | /api/import/confirm |
+| POST | /api/search/semantic |
+| GET | /api/consistency/check |
+| POST | /api/rag/context |
 
 ## 5. Dependencies
 - fastapi==0.104.1
@@ -84,10 +91,14 @@ Current: v1.15.0
 | Multi-Book | book_id V1.1; full hierarchy V1.5 | V1.1 / V1.5 |
 | Cache | diskcache (zero-dep, file-based) | V1.3 |
 | Hybrid Search Ratio | semantic 0.7 + keyword 0.3 (RRF merge) | V1.1 |
+| Connection Pool | Thread-local SQLite with auto-reconnect | V1.1.5 |
+| Rate Limiter | 120 req/min sliding window middleware | V1.1.5 |
+| LLM Extraction | JSON robust parser + injection defense | V1.1.5
 | Capability | Version | Implementation |
 | World Search | V1.1.0 | Semantic search API |
 | World Context | V1.1.0 | RAG context upgrade |
 | Timeline Builder | V1.0 + V1.1 | Fixes + RAG pipeline |
+| Security & Perf | V1.1.5 | Connection pool, rate limiter, SQL injection fix |
 | Faction Analysis | V1.1.0 | Consistency Checker |
 | Power Scaling | V2.0+ | Reserved for later |
 | Consistency Check | V1.1 basic / V1.3 advanced | Rule engine + LLM |
