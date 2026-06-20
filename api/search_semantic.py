@@ -6,6 +6,7 @@ from pydantic import BaseModel
 router = APIRouter(tags=['semantic_search'])
 
 class SemanticSearchRequest(BaseModel):
+    lang: Optional[str] = None
     query: str
     top_k: int = 10
     filter_type: Optional[str] = None
@@ -26,7 +27,8 @@ async def semantic_search(req: SemanticSearchRequest, request: Request, api_key:
         query=req.query,
         top_k=req.top_k,
         filter_type=req.filter_type,
-        book_id=req.book_id
+        book_id=req.book_id,
+        lang=req.lang
     )
     return {
         'results': [
@@ -37,7 +39,9 @@ async def semantic_search(req: SemanticSearchRequest, request: Request, api_key:
                 'importance': r.importance,
                 'content_preview': r.chunk_text[:200],
                 'score': round(r.score, 4),
-                'book_id': r.book_id
+                'book_id': r.book_id,
+                'translated_title': r.translated_title or None,
+                'translated_content': r.translated_content[:200] if r.translated_content else None
             }
             for r in results
         ],

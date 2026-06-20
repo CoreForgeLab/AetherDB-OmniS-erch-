@@ -75,7 +75,7 @@
                     <td>{% set tags = entity.tags | from_json %}{% for tag in tags %}<span class="tag-badge-sm">{{ tag }}</span>{% endfor %}</td>
                     <td style="font-size:12px;color:#666;">{{ entity.created_at[:10] if entity.created_at else '' }}</td>
                     <td>
-                        <a class="action-link" href="/api/entity/{{ entity.entity_id }}?api_key={{ admin_key }}" target="_blank">查看</a>
+                        <a class="action-link" href="/api/entity/{{ entity.entity_id }}?api_key={{ api_key }}" target="_blank">查看</a>
                         <a class="action-link danger" onclick="confirmDelete('{{ entity.entity_id }}')">删除</a>
                     </td>
                 </tr>
@@ -101,21 +101,21 @@
     </div>
     
     <script>
-        const ADMIN_KEY = "{{ admin_key }}";
-        let pendingDeleteId = null;
+        // Admin key is NOT exposed in frontend. Delete uses server-side proxy.
+        var pendingDeleteId = null;
         
         function filterTable() {
-            const typeFilter = document.getElementById("filterType").value;
-            const textFilter = document.getElementById("filterText").value.toLowerCase();
-            const rows = document.querySelectorAll("#entityTableBody tr");
-            let visible = 0;
+            var typeFilter = document.getElementById("filterType").value;
+            var textFilter = document.getElementById("filterText").value.toLowerCase();
+            var rows = document.querySelectorAll("#entityTableBody tr");
+            var visible = 0;
             
-            rows.forEach(row => {
-                const type = row.dataset.type;
-                const title = row.dataset.title.toLowerCase();
-                const matchesType = !typeFilter || type === typeFilter;
-                const matchesText = !textFilter || title.includes(textFilter);
-                const show = matchesType && matchesText;
+            rows.forEach(function(row) {
+                var type = row.dataset.type;
+                var title = row.dataset.title.toLowerCase();
+                var matchesType = !typeFilter || type === typeFilter;
+                var matchesText = !textFilter || title.includes(textFilter);
+                var show = matchesType && matchesText;
                 row.style.display = show ? "" : "none";
                 if (show) visible++;
             });
@@ -136,19 +136,20 @@
         
         async function executeDelete() {
             if (!pendingDeleteId) return;
-            const btn = document.getElementById("confirmDeleteBtn");
+            var btn = document.getElementById("confirmDeleteBtn");
             btn.disabled = true;
             btn.textContent = "删除中...";
             
             try {
-                const resp = await fetch("/api/entity/" + pendingDeleteId + "?api_key=" + encodeURIComponent(ADMIN_KEY), {
-                    method: "DELETE"
+                var resp = await fetch("/admin/entity/" + encodeURIComponent(pendingDeleteId) + "/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
                 });
                 if (resp.ok) {
                     alert("删除成功");
                     location.reload();
                 } else {
-                    const result = await resp.json();
+                    var result = await resp.json();
                     alert("删除失败：" + (result.detail || "未知错误"));
                 }
             } catch (err) {
@@ -162,30 +163,37 @@
     </script>
 
 <script>
-// === Mode switcher: ?mode=admin|user (Phase 3.2) ===
+// === Mode switcher: ?mode=admin|user (Phase 3.2) — built with DOM API ===
 (function() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const modeParam = urlParams.get("mode");
-  const savedMode = localStorage.getItem("worldview_mode");
-  const defaultMode = modeParam || savedMode || "user";
+  var urlParams = new URLSearchParams(window.location.search);
+  var modeParam = urlParams.get("mode");
+  var savedMode = localStorage.getItem("worldview_mode");
+  var defaultMode = modeParam || savedMode || "user";
   localStorage.setItem("worldview_mode", defaultMode);
-  const isAdmin = defaultMode === "admin";
+  var isAdmin = defaultMode === "admin";
   
-  // Toggle visibility of admin-only elements
-  document.querySelectorAll(".admin-only").forEach(el => {
+  document.querySelectorAll(".admin-only").forEach(function(el) {
     el.style.display = isAdmin ? "" : "none";
   });
   
-  // Add mode indicator + toggle
-  const header = document.querySelector("header") || document.querySelector("h1") || document.body;
-  const modeBar = document.createElement("div");
+  var header = document.querySelector("header") || document.querySelector("h1") || document.body;
+  var modeBar = document.createElement("div");
   modeBar.style.cssText = "text-align:right;margin-bottom:10px;font-size:12px;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;";
-  modeBar.innerHTML = \`
-    <span style="color:var(--text-dim, #666);">
-      Mode: <strong>\${isAdmin ? "管理员" : "用户"}</strong>
-      <a href="?mode=\${isAdmin ? "user" : "admin"}" style="margin-left:4px;color:#667eea;text-decoration:none;font-size:11px;">[\${isAdmin ? "切换到用户" : "切换到管理"}]</a>
-    </span>
-  \`;
+  
+  var modeSpan = document.createElement("span");
+  modeSpan.style.cssText = "color:var(--text-dim, #666);";
+  modeSpan.appendChild(document.createTextNode("Mode: "));
+  var modeStrong = document.createElement("strong");
+  modeStrong.textContent = isAdmin ? "管理员" : "用户";
+  modeSpan.appendChild(modeStrong);
+  modeSpan.appendChild(document.createTextNode(" "));
+  var toggleLink = document.createElement("a");
+  toggleLink.href = "?mode=" + (isAdmin ? "user" : "admin");
+  toggleLink.style.cssText = "margin-left:4px;color:#667eea;text-decoration:none;font-size:11px;";
+  toggleLink.textContent = isAdmin ? "[切换到用户]" : "[切换到管理]";
+  modeSpan.appendChild(toggleLink);
+  modeBar.appendChild(modeSpan);
+  
   if (header && header.parentNode) {
     header.parentNode.insertBefore(modeBar, header.nextSibling);
   }

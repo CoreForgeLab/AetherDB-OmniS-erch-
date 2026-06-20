@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import json
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field

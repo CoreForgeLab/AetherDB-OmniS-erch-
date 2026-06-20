@@ -17,7 +17,7 @@
             <a href="/search" class="nav-link active">搜索</a>
             <a href="/timeline" class="nav-link">时间线</a>
             <a href="/import" class="nav-link">导入</a>
-            <a href="/import" class="nav-link">导入</a><a href="/admin" class="nav-link">管理</a>
+            <a href="/admin" class="nav-link">管理</a>
         </nav>
         
         <div class="form-group">
@@ -52,22 +52,87 @@
     <script>
         const API_KEY = "{{ api_key }}";
         const ENTITY_TYPE_NAMES = {{ entity_types | tojson }};
-        
+
+        /** Escape HTML entities to prevent XSS. */
+        function esc(str) {
+            var d = document.createElement("div");
+            d.appendChild(document.createTextNode(String(str)));
+            return d.innerHTML;
+        }
+
+        /** Build a safe search-result card using DOM API (no innerHTML with user data). */
+        function buildResultCard(entity, apiKey, typeNames) {
+            var card = document.createElement("div");
+            card.className = "search-result";
+
+            // Header bar
+            var header = document.createElement("div");
+            header.className = "entity-header";
+            
+            var typeSpan = document.createElement("span");
+            typeSpan.className = "entity-type";
+            typeSpan.textContent = typeNames[entity.entity_type] || entity.entity_type;
+            header.appendChild(typeSpan);
+            
+            var impSpan = document.createElement("span");
+            impSpan.textContent = "重要性: " + entity.importance;
+            header.appendChild(impSpan);
+            card.appendChild(header);
+
+            // Title as link
+            var h3 = document.createElement("h3");
+            var a = document.createElement("a");
+            a.href = "/api/entity/" + encodeURIComponent(entity.entity_id) + "?api_key=" + encodeURIComponent(apiKey);
+            a.target = "_blank";
+            a.textContent = entity.title;
+            h3.appendChild(a);
+            card.appendChild(h3);
+
+            // Meta line
+            var meta = document.createElement("p");
+            meta.className = "meta";
+            meta.textContent = "ID: " + entity.entity_id;
+            if (entity.tags && entity.tags.length > 0) {
+                meta.textContent += " | 标签: " + entity.tags.join(", ");
+            }
+            if (entity.relation_count) {
+                meta.textContent += " | 关系数: " + entity.relation_count;
+            }
+            card.appendChild(meta);
+
+            // Summary
+            if (entity.ai_summary) {
+                var summary = document.createElement("p");
+                summary.style.cssText = "color:#555;font-size:13px;margin-top:5px;";
+                summary.textContent = entity.ai_summary.substring(0, 200);
+                card.appendChild(summary);
+            }
+
+            return card;
+        }
+
         async function doSearch() {
-            const keyword = document.getElementById("searchKeyword").value.trim();
-            const entityType = document.getElementById("searchType").value;
-            const limit = parseInt(document.getElementById("searchLimit").value);
-            const resultsDiv = document.getElementById("results");
+            var keyword = document.getElementById("searchKeyword").value.trim();
+            var entityType = document.getElementById("searchType").value;
+            var limit = parseInt(document.getElementById("searchLimit").value);
+            var resultsDiv = document.getElementById("results");
             
             if (!keyword) {
-                resultsDiv.innerHTML = "<p style='color:#666;'>请输入搜索关键词</p>";
+                resultsDiv.textContent = "";
+                var p = document.createElement("p");
+                p.style.color = "#666";
+                p.textContent = "请输入搜索关键词";
+                resultsDiv.appendChild(p);
                 return;
             }
             
-            resultsDiv.innerHTML = "<p>搜索中...</p>";
+            resultsDiv.textContent = "";
+            var loading = document.createElement("p");
+            loading.textContent = "搜索中...";
+            resultsDiv.appendChild(loading);
             
             try {
-                const resp = await fetch("/api/search?api_key=" + encodeURIComponent(API_KEY), {
+                var resp = await fetch("/api/search?api_key=" + encodeURIComponent(API_KEY), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -77,40 +142,44 @@
                         limit: limit
                     })
                 });
-                const result = await resp.json();
+                var result = await resp.json();
+                
+                resultsDiv.textContent = "";
                 
                 if (!resp.ok) {
-                    resultsDiv.innerHTML = "<p style='color:red;'>搜索失败：" + (result.detail || "未知错误") + "</p>";
+                    var p = document.createElement("p");
+                    p.style.color = "red";
+                    p.textContent = "搜索失败：" + (result.detail || "未知错误");
+                    resultsDiv.appendChild(p);
                     return;
                 }
                 
                 if (result.total === 0) {
-                    resultsDiv.innerHTML = "<p>未找到匹配的实体</p>";
+                    var p = document.createElement("p");
+                    p.textContent = "未找到匹配的实体";
+                    resultsDiv.appendChild(p);
                     return;
                 }
                 
-                let html = "<p>找到 <strong>" + result.total + "</strong> 个结果</p>";
-                for (const entity of result.results) {
-                    const typeName = ENTITY_TYPE_NAMES[entity.entity_type] || entity.entity_type;
-                    html += '<div class="search-result">';
-                    html += '<div class="entity-header"><span class="entity-type">' + typeName + '</span><span>重要性: ' + entity.importance + '</span></div>';
-                    html += '<h3><a href="/api/entity/' + entity.entity_id + '?api_key=' + encodeURIComponent(API_KEY) + '" target="_blank">' + entity.title + '</a></h3>';
-                    html += '<p class="meta">ID: ' + entity.entity_id;
-                    if (entity.tags && entity.tags.length > 0) {
-                        html += ' | 标签: ' + entity.tags.join(", ");
-                    }
-                    if (entity.relation_count) {
-                        html += ' | 关系数: ' + entity.relation_count;
-                    }
-                    html += '</p>';
-                    if (entity.ai_summary) {
-                        html += '<p style="color:#555;font-size:13px;margin-top:5px;">' + entity.ai_summary.substring(0, 200) + '</p>';
-                    }
-                    html += '</div>';
+                // Summary line
+                var summary = document.createElement("p");
+                var strong = document.createElement("strong");
+                strong.textContent = String(result.total);
+                summary.appendChild(document.createTextNode("找到 "));
+                summary.appendChild(strong);
+                summary.appendChild(document.createTextNode(" 个结果"));
+                resultsDiv.appendChild(summary);
+                
+                // Result cards
+                for (var i = 0; i < result.results.length; i++) {
+                    resultsDiv.appendChild(buildResultCard(result.results[i], API_KEY, ENTITY_TYPE_NAMES));
                 }
-                resultsDiv.innerHTML = html;
             } catch (err) {
-                resultsDiv.innerHTML = "<p style='color:red;'>请求失败：" + err.message + "</p>";
+                resultsDiv.textContent = "";
+                var p = document.createElement("p");
+                p.style.color = "red";
+                p.textContent = "请求失败：" + err.message;
+                resultsDiv.appendChild(p);
             }
         }
     </script>
@@ -118,28 +187,40 @@
 <script>
 // === Mode switcher: ?mode=admin|user (Phase 3.2) ===
 (function() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const modeParam = urlParams.get("mode");
-  const savedMode = localStorage.getItem("worldview_mode");
-  const defaultMode = modeParam || savedMode || "user";
+  var urlParams = new URLSearchParams(window.location.search);
+  var modeParam = urlParams.get("mode");
+  var savedMode = localStorage.getItem("worldview_mode");
+  var defaultMode = modeParam || savedMode || "user";
   localStorage.setItem("worldview_mode", defaultMode);
-  const isAdmin = defaultMode === "admin";
+  var isAdmin = defaultMode === "admin";
   
   // Toggle visibility of admin-only elements
-  document.querySelectorAll(".admin-only").forEach(el => {
+  document.querySelectorAll(".admin-only").forEach(function(el) {
     el.style.display = isAdmin ? "" : "none";
   });
   
-  // Add mode indicator + toggle
-  const header = document.querySelector("header") || document.querySelector("h1") || document.body;
-  const modeBar = document.createElement("div");
+  // Add mode indicator + toggle — built with DOM API, no innerHTML
+  var header = document.querySelector("header") || document.querySelector("h1") || document.body;
+  var modeBar = document.createElement("div");
   modeBar.style.cssText = "text-align:right;margin-bottom:10px;font-size:12px;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;";
-  modeBar.innerHTML = \`
-    <span style="color:var(--text-dim, #666);">
-      Mode: <strong>\${isAdmin ? "管理员" : "用户"}</strong>
-      <a href="?mode=\${isAdmin ? "user" : "admin"}" style="margin-left:4px;color:#667eea;text-decoration:none;font-size:11px;">[\${isAdmin ? "切换到用户" : "切换到管理"}]</a>
-    </span>
-  \`;
+  
+  var modeSpan = document.createElement("span");
+  modeSpan.style.cssText = "color:var(--text-dim, #666);";
+  
+  modeSpan.appendChild(document.createTextNode("Mode: "));
+  var modeStrong = document.createElement("strong");
+  modeStrong.textContent = isAdmin ? "管理员" : "用户";
+  modeSpan.appendChild(modeStrong);
+  
+  modeSpan.appendChild(document.createTextNode(" "));
+  var toggleLink = document.createElement("a");
+  toggleLink.href = "?mode=" + (isAdmin ? "user" : "admin");
+  toggleLink.style.cssText = "margin-left:4px;color:#667eea;text-decoration:none;font-size:11px;";
+  toggleLink.textContent = isAdmin ? "[切换到用户]" : "[切换到管理]";
+  modeSpan.appendChild(toggleLink);
+  
+  modeBar.appendChild(modeSpan);
+  
   if (header && header.parentNode) {
     header.parentNode.insertBefore(modeBar, header.nextSibling);
   }

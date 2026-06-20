@@ -87,13 +87,26 @@ export USER_API_KEY="your-user-key"
 - 新增 httptools（可选的 uvicorn HTTP 解析加速器）
 - `scripts/backup.py` — 命令行数据备份
 
+
+## V1.20.0 新增功能
+
+### 🌐 多语言翻译 API
+- 新增 pi/translate.py：POST/GET /api/entity/{id}/translate 端点
+- entity_translations 表（含 entity_id + language 唯一约束）
+- 数据迁移脚本支持存量数据升级
+
+### 🗄️ Schema 迁移：book_id + FTS5
+- ook_id 字段已加入全部 6 张核心表（Alembic 0002）
+- FTS5 全文检索虚拟表（entities_fts），支持高速关键词搜索
+- 迁移脚本：scripts/migrate_v1.1_to_v1.2.py、scripts/migrate_v1.2.py
+- 服务启动时自动执行 Schema 升级
 ## V1.x 技术路线图
 
 | 版本 | 状态 | 核心功能 |
 |------|------|----------|
 | v1.0.0Beta | ✅ 已发布 | 初始版本：8 种实体类型、CRUD、关系图谱、标签、时间线 |
 | V1.1.5 | ✅ 已发布 | 服务层重构、语义搜索、一致性检查、向量存储、速率限制 |
-| V1.19.1 | ✅ 当前 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
+| V1.19.1 | ✅ 已发布 | 日志系统、数据备份 API、路由拆分、Alembic 数据库迁移 |
 | v1.1.0 | ✅ 已发布（V1.1.5） | 高级 RAG、sqlite-vec、混合搜索、一致性检查（已在 V1.1.5 中完成） |
 | v1.2.0 | 📅 规划 | 多语言架构（entity_translations 表、跨语言搜索） |
 | v1.3.0 | 📅 规划 | 缓存（diskcache）、LLMProvider 抽象、D3.js 知识图谱 |

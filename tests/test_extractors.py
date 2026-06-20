@@ -1,4 +1,4 @@
-﻿"""extractors unit tests"""
+"""extractors unit tests"""
 import unittest, json, sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from extractors.base import extract_json, sanitize_input, ExtractorBase

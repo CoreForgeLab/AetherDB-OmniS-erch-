@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """批量导入脚本 — 从 HTML/纯文本/Markdown 文件中提取段落并写入数据库。"""
 
 import argparse, json, os, re, sqlite3, sys

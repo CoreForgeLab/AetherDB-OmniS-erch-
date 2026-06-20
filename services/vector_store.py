@@ -1,9 +1,9 @@
-﻿import math, sqlite3, json, time, struct
+import math, sqlite3, json, time, struct
 from typing import List, Optional
 from dataclasses import dataclass
 from services.embedding import EmbeddingProvider
 
-VECTOR_DIMS = 384
+VECTOR_DIMS = 1024  # bge-m3
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 128
 
@@ -16,6 +16,8 @@ class SearchResult:
     chunk_text: str
     score: float
     book_id: str
+    translated_title: str = ""
+    translated_content: str = ""
 
 class VectorStore:
     def __init__(self, db_path, embedding_provider):
@@ -125,11 +127,14 @@ class VectorStore:
             book_id or 'default'
         )
 
-    def search(self, query, top_k=10, filter_type=None, book_id=None):
+    def search(self, query, top_k=10, filter_type=None, book_id=None, lang=None):
         query_vec = self.embedding.embed(query)
         vec_results = self._vector_search(query_vec, top_k * 2, filter_type, book_id)
         kw_results = self._keyword_search(query, top_k * 2, filter_type, book_id)
-        return self._rrf_merge([vec_results, kw_results], top_k)
+        results = self._rrf_merge([vec_results, kw_results], top_k)
+        if lang:
+            results = self._enrich_with_translations(results, lang)
+        return results
 
     def _vector_search(self, query_vec, top_k, filter_type=None, book_id=None):
         conn = self._get_conn()
@@ -200,6 +205,23 @@ class VectorStore:
             return []
         finally:
             conn.close()
+
+    
+    def _enrich_with_translations(self, results, lang):
+        conn = self._get_conn()
+        try:
+            for r in results:
+                c = conn.cursor()
+                c.execute("SELECT title, content FROM entity_translations WHERE entity_id=? AND language=?", (r.entity_id, lang))
+                trans = c.fetchone()
+                if trans:
+                    r.translated_title = trans["title"]
+                    r.translated_content = trans["content"] or ""
+        except:
+            pass
+        finally:
+            conn.close()
+        return results
 
     def _rrf_merge(self, results_lists, top_k, k=60):
         scores = {}

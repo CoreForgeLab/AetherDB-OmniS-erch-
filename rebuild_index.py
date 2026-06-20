@@ -1,4 +1,4 @@
-﻿"""
+"""
 rebuild_index.py - Rebuild vector embeddings for all entities in the database.
 Usage: python rebuild_index.py [--book-id BOOK_ID]
 """

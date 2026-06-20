@@ -1,4 +1,4 @@
-﻿"""
+"""
 Logging module for the Worldview Database System.
 Provides structured logging with rotation, log level management,
 and utility functions for consistent log formatting.

@@ -1,4 +1,4 @@
-﻿"""DB CRUD boundary condition tests"""
+"""DB CRUD boundary condition tests"""
 import unittest, sqlite3, json, sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 

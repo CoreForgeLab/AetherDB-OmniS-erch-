@@ -77,10 +77,10 @@ def sanitize_input(text: str, max_length: int = MAX_INPUT_LENGTH) -> str:
     if len(sanitized) > max_length:
         sanitized = sanitized[:max_length] + "\n...[truncated]"
     
-   return sanitized
+    return sanitized
  
  
- def clean_json_response(raw: str) -> str:
+def clean_json_response(raw: str) -> str:
      """Aggressively strip Markdown code fences and non-JSON prefixes from LLM output.
  
      Small local models (e.g. Ollama Qwen, Llama) frequently wrap JSON in
@@ -120,7 +120,7 @@ def sanitize_input(text: str, max_length: int = MAX_INPUT_LENGTH) -> str:
  
  
  # Alias for discoverability
- def _clean_json_response(raw: str) -> str:
+def _clean_json_response(raw: str) -> str:
      return clean_json_response(raw)
 
 

@@ -1,6 +1,6 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-世界观数据库管理系统 v1.19.1 中文版
+世界观数据库管理系统 v1.20.0 中文版
 使用 FastAPI + Jinja2 模板
 """
 
@@ -23,6 +23,7 @@ from services.vector_store import VectorStore
 from api.search_semantic import router as semantic_router
 from api.rag_context import router as rag_router
 from api.consistency_check import router as consistency_router
+from api.translate import router as translate_router
 from api.backup import router as backup_router
 from pydantic import BaseModel
 from typing import Optional, List
@@ -75,7 +76,7 @@ ENTITY_PREFIXES = {
 # FastAPI应用初始化
 # ============================================================
 app = FastAPI(
-    title="世界观数据库管理系统 v1.19.1",
+    title="世界观数据库管理系统 v1.20.0",
     version="1.0.0",
     description="支持 AI 协作的世界观数据库系统"
 )
@@ -274,6 +275,25 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_entity ON tag_index(entity_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_name ON tag_index(tag)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_entity_version ON entity_versions(entity_id)")
+    # === V1.1.5-V1.2.0 Migration: book_id + entity_translations + FTS5 ===
+    for table in ["entities", "relations", "tag_index", "entity_versions", "references_map", "timeline_events"]:
+        try:
+            cursor.execute("ALTER TABLE " + table + " ADD COLUMN book_id TEXT DEFAULT 'default'")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_" + table + "_book ON " + table + "(book_id)")
+        except:
+            pass
+    cursor.execute("CREATE TABLE IF NOT EXISTS entity_translations ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, entity_id TEXT NOT NULL, "
+        "language TEXT NOT NULL, title TEXT NOT NULL, "
+        "content TEXT, full_content TEXT, ai_summary TEXT, book_id TEXT, "
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+        "UNIQUE(entity_id, language))")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_et_entity ON entity_translations(entity_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_et_lang ON entity_translations(language)")
+    cursor.execute("CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5("
+        "entity_id UNINDEXED, title, content, full_content, "
+        "tokenize='unicode61 remove_diacritics 2')")
     
     conn.commit()
     conn.close()
@@ -670,7 +690,7 @@ async def access_log_middleware(request, call_next):
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  世界观数据库管理系统 v1.19.1 中文版")
+    print("  世界观数据库管理系统 v1.20.0 中文版")
     print("=" * 60)
     print(f"  启动时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("-" * 60)
@@ -692,6 +712,7 @@ if __name__ == "__main__":
     app.include_router(semantic_router)
     app.include_router(rag_router)
     app.include_router(consistency_router)
+    app.include_router(translate_router)
     app.include_router(web_router)
     app.include_router(backup_router)
     print("  [OK] Vector Store initialized with sqlite-vec")
@@ -705,7 +726,7 @@ if __name__ == "__main__":
     log_level = cfg.get("logging", {}).get("level", "INFO")
     init_logging(level=log_level)
     log = get_logger()
-    log.info("Server starting - Worldview Database v1.19.1")
+    log.info("Server starting - Worldview Database v1.20.0")
     
     # Auto backup on startup
     if cfg.get("backup", {}).get("auto_backup_on_startup", True):

@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import threading
 import asyncio
 from typing import Any, List, Optional, Tuple

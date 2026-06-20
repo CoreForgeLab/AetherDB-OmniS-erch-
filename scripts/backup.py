@@ -1,4 +1,4 @@
-﻿"""
+"""
 Data Backup CLI — Exports all database content as portable JSON.
 Focus: entities and their relationships (not project source code).
 
@@ -78,7 +78,7 @@ def create_backup(description=''):
     workspace_id = cfg.get('app', {}).get('workspace_id', 'default')
     meta = {
         'name': name, 'timestamp': timestamp,
-        'version': 'v1.19.1', 'workspace_id': workspace_id, 'description': description or 'CLI data backup',
+        'version': 'v1.20.0', 'workspace_id': workspace_id, 'description': description or 'CLI data backup',
         'counts': {t: len(r) for t, r in data.items()},
         'total_entities': total_entities,
         'total_relations': total_relations,

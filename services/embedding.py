@@ -8,7 +8,7 @@ import requests
 import json
 import os
 
-VECTOR_DIMS = 384
+VECTOR_DIMS = 1024  # bge-m3
 
 class EmbeddingProvider(ABC):
     @abstractmethod
@@ -37,7 +37,7 @@ class MockEmbeddingProvider(EmbeddingProvider):
         return self._dims
 
 class OllamaEmbeddingProvider(EmbeddingProvider):
-    def __init__(self, base_url: str = 'http://localhost:11434', model: str = 'nomic-embed-text'):
+    def __init__(self, base_url: str = 'http://localhost:11434', model: str = 'bge-m3'):
         self.base_url = base_url
         self.model = model
         self._dims = VECTOR_DIMS
