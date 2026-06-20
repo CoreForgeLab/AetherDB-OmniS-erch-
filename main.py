@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-世界观数据库管理系统 v1.19.0 中文版
+世界观数据库管理系统 v1.19.1 中文版
 使用 FastAPI + Jinja2 模板
 """
 
@@ -29,7 +29,7 @@ from typing import Optional, List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from routes.web import web_router
+from routes.web import router as web_router
 from fastapi.templating import Jinja2Templates
 
 # ============================================================
@@ -75,7 +75,7 @@ ENTITY_PREFIXES = {
 # FastAPI应用初始化
 # ============================================================
 app = FastAPI(
-    title="世界观数据库管理系统 v1.19.0",
+    title="世界观数据库管理系统 v1.19.1",
     version="1.0.0",
     description="支持 AI 协作的世界观数据库系统"
 )
@@ -670,7 +670,7 @@ async def access_log_middleware(request, call_next):
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  世界观数据库管理系统 v1.19.0 中文版")
+    print("  世界观数据库管理系统 v1.19.1 中文版")
     print("=" * 60)
     print(f"  启动时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("-" * 60)
@@ -705,7 +705,7 @@ if __name__ == "__main__":
     log_level = cfg.get("logging", {}).get("level", "INFO")
     init_logging(level=log_level)
     log = get_logger()
-    log.info("Server starting - Worldview Database v1.19.0")
+    log.info("Server starting - Worldview Database v1.19.1")
     
     # Auto backup on startup
     if cfg.get("backup", {}).get("auto_backup_on_startup", True):

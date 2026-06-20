@@ -10,13 +10,13 @@ ins = '    import yaml\n    with open(' + SQ + 'config.yaml' + SQ + ', encoding=
 f = f.replace('    meta = {', ins + '    meta = {')
 
 # 2. Add workspace_id to metadata dict
-old_meta = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'Data backup' + SQ
-new_meta = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'Data backup' + SQ
+old_meta = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'Data backup' + SQ
+new_meta = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'Data backup' + SQ
 f = f.replace(old_meta, new_meta)
 
 # Also update CLI variant
-old_meta2 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
-new_meta2 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
+old_meta2 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
+new_meta2 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
 f = f.replace(old_meta2, new_meta2)
 
 open('api/backup.py', 'w', encoding='utf-8').write(f)
@@ -30,8 +30,8 @@ f = open('scripts/backup.py', 'r', encoding='utf-8-sig').read()
 f = f.replace('    meta = {', ins + '    meta = {')
 
 # Same metadata update for CLI
-old_meta3 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
-new_meta3 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.0' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
+old_meta3 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
+new_meta3 = SQ + 'version' + SQ + ': ' + SQ + 'v1.19.1' + SQ + ', ' + SQ + 'workspace_id' + SQ + ': workspace_id, ' + SQ + 'description' + SQ + ': description or ' + SQ + 'CLI data backup' + SQ
 f = f.replace(old_meta3, new_meta3)
 
 open('scripts/backup.py', 'w', encoding='utf-8').write(f)
